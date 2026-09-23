@@ -8,12 +8,15 @@
 
 [build]
   command = "npm run build"
+  # Must be .next for the Next.js plugin. Set here so it overrides whatever the
+  # Netlify UI has (an empty UI value resolves to the repo root, which fails).
+  publish = ".next"
 
 [build.environment]
   # Next 16 needs Node 20+; Netlify's default image may be older.
   NODE_VERSION = "22"
 
 # Official Next.js runtime — SSR, route handlers, image optimisation.
-# It sets `publish` itself, so do not set it here.
+# publish is pinned to .next above.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
