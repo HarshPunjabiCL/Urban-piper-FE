@@ -15,6 +15,8 @@
 [build.environment]
   # Next 16 needs Node 20+; Netlify's default image may be older.
   NODE_VERSION = "22"
+  # Baked in at build time. Dev tunnel only works while VS Code forwards 5100.
+  NEXT_PUBLIC_BACKEND_URL = "https://7lrcjgtk-5100.inc1.devtunnels.ms"
 
 # Official Next.js runtime — SSR, route handlers, image optimisation.
 # publish is pinned to .next above.
