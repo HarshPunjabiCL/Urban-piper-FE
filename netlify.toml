@@ -1,0 +1,19 @@
+# This repo IS the Next.js app, so there is no `base` setting — Netlify builds
+# from the repo root.
+#
+# The backend it talks to (Express + SQLite) lives in a separate project and is
+# NOT deployable to Netlify: Functions are ephemeral with a read-only
+# filesystem, and SQLite needs a persistent disk. Point the app at wherever the
+# backend actually runs, via NEXT_PUBLIC_BACKEND_URL.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  # Next 16 needs Node 20+; Netlify's default image may be older.
+  NODE_VERSION = "22"
+
+# Official Next.js runtime — SSR, route handlers, image optimisation.
+# It sets `publish` itself, so do not set it here.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

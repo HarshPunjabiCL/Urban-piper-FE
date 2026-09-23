@@ -1,0 +1,22 @@
+{
+  "name": "urbanpiper-poc-frontend",
+  "version": "1.0.0",
+  "description": "Next.js frontend for the UrbanPiper POS integration POC.",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100"
+  },
+  "dependencies": {
+    "next": "^16.2.6",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19"
+  },
+  "engines": { "node": ">=20.9.0" }
+}
