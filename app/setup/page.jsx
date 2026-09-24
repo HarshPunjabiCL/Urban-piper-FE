@@ -92,6 +92,8 @@ export default function SetupPage() {
   const [menu, setMenu] = useState(SAMPLE_MENU);
   // §19: a full sync is a complete snapshot and deletes anything absent.
   const [fullSync, setFullSync] = useState(false);
+  // Nutrition has no UrbanPiper field — this writes it into item descriptions.
+  const [appendNutrition, setAppendNutrition] = useState(false);
   const [timingGroups, setTimingGroups] = useState([]);
   const [schema, setSchema] = useState(null);
   const [knownStores, setKnownStores] = useState([]);
@@ -281,12 +283,30 @@ export default function SetupPage() {
             </div>
           </div>
 
+          <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={appendNutrition}
+              onChange={(e) => setAppendNutrition(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+            />
+            <span>
+              <span className="font-semibold">Add nutrition to descriptions</span>
+              <span className="block text-2xs text-slate-500">
+                UrbanPiper has no nutrition field, so the figures are written into each
+                item&rsquo;s description as{" "}
+                <code className="font-mono">Per serving: 450 kcal &middot; Protein 12g</code>.
+                Customer-facing text, and re-pushing will not duplicate the line.
+              </span>
+            </span>
+          </label>
+
           <JsonViewer value={menu} label="See exactly what will be sent" collapsed />
 
           <button
             type="button"
             disabled={busy === "menu"}
-            onClick={() => run("menu", () => pushMenu(refId, { catalogue: menu, flush: fullSync }))}
+            onClick={() => run("menu", () => pushMenu(refId, { catalogue: menu, flush: fullSync, appendNutrition }))}
             className={primaryBtn + " mt-4 !bg-rose-600 hover:!bg-rose-700"}
           >
             {busy === "menu" ? "Sending..." : (fullSync ? "Full sync to " : "Update menu on ") + refId}

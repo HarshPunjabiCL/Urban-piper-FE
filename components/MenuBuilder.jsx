@@ -12,6 +12,15 @@ import { inputCls, label, smallBtn } from "../lib/ui";
  * translates (buildVariantAsOptions) — which is why variant tax, MRP, default
  * selection and ordering appear in the drop report rather than in the payload.
  */
+// Charge codes are a closed enum and the suffix IS the charge type.
+// Verified against staging: PC_F/PC_P/DC_F/DC_P accepted, SC_* rejected.
+const CHARGE_CODES = [
+  { value: "PC_F", label: "Packaging — fixed ₹", unit: "₹" },
+  { value: "PC_P", label: "Packaging — percentage %", unit: "%" },
+  { value: "DC_F", label: "Delivery — fixed ₹", unit: "₹" },
+  { value: "DC_P", label: "Delivery — percentage %", unit: "%" }
+];
+
 const FOOD_TYPES = [
   { value: "1", label: "Veg" },
   { value: "2", label: "Non-veg" },
@@ -33,7 +42,19 @@ const Row = ({ children, onRemove }) => (
   </div>
 );
 
-const Small = ({ placeholder, value, onChange, type = "text", ...rest }) => (
+// `caption` renders a visible label above the input. Placeholders vanish once a
+// value is entered, so a pre-filled "0" price would otherwise be unlabelled.
+const Small = ({ caption, ...props }) =>
+  caption ? (
+    <label className="block">
+      <span className={label + " mb-1"}>{caption}</span>
+      <SmallInput {...props} />
+    </label>
+  ) : (
+    <SmallInput {...props} />
+  );
+
+const SmallInput = ({ placeholder, value, onChange, type = "text", ...rest }) => (
   <input
     type={type}
     placeholder={placeholder}
@@ -136,6 +157,86 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                   <Small placeholder="external_price" type="number" value={it.external_price} onChange={(e) => update("items", i, { external_price: Number(e.target.value) })} />
                 </div>
                 <Small placeholder="description" value={it.description} onChange={(e) => update("items", i, { description: e.target.value })} />
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2.5">
+                  <p className={label}>Channel tags</p>
+                  <p className="mt-0.5 text-2xs text-slate-400">
+                    Keyed by channel, not general attributes &mdash; &ldquo;breakfast&rdquo; is a
+                    tag <em>on Zomato</em>, not a property of the dish. Each channel must be
+                    listed separately.
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {Object.entries(it.tags ?? {}).map(([channel, values], t) => (
+                      <div key={t} className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
+                        <Small
+                          placeholder="channel e.g. zomato"
+                          value={channel}
+                          onChange={(e) => {
+                            const next = {};
+                            for (const [k, v] of Object.entries(it.tags ?? {})) {
+                              next[k === channel ? e.target.value.toLowerCase() : k] = v;
+                            }
+                            update("items", i, { tags: next });
+                          }}
+                        />
+                        <Small
+                          placeholder="tags, comma separated e.g. breakfast, bestseller"
+                          value={(values ?? []).join(", ")}
+                          onChange={(e) =>
+                            update("items", i, {
+                              tags: {
+                                ...it.tags,
+                                [channel]: e.target.value.split(",").map((x) => x.trim()).filter(Boolean)
+                              }
+                            })
+                          }
+                        />
+                        <button
+                          type="button"
+                          aria-label="Remove channel tags"
+                          onClick={() => {
+                            const next = { ...it.tags };
+                            delete next[channel];
+                            update("items", i, { tags: Object.keys(next).length ? next : undefined });
+                          }}
+                          className="rounded border border-slate-300 px-2 text-xs text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                    <AddBtn
+                      onClick={() => update("items", i, { tags: { ...(it.tags ?? {}), "": [] } })}
+                    >
+                      + Add channel tags
+                    </AddBtn>
+                  </div>
+                </div>
+
+                <div className="mt-2 grid gap-2 sm:grid-cols-5">
+                  {[
+                    ["calories", "Calories"],
+                    ["protein", "Protein g"],
+                    ["fat", "Fat g"],
+                    ["carbohydrates", "Carbs g"],
+                    ["fibre", "Fibre g"]
+                  ].map(([key, cap]) => (
+                    <Small
+                      key={key}
+                      caption={cap}
+                      placeholder="—"
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={it[key]}
+                      onChange={(e) =>
+                        update("items", i, {
+                          [key]: e.target.value === "" ? undefined : Number(e.target.value)
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+
                 <div className="mt-2 flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-1.5 text-xs text-slate-600">
                     <input type="checkbox" checked={it.available !== false} onChange={(e) => update("items", i, { available: e.target.checked })} className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600" />
@@ -155,6 +256,11 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
               + Add item
             </AddBtn>
             <p className="text-2xs text-slate-400">
+              Nutrition has no field in UrbanPiper. Tick &ldquo;Add nutrition to
+              descriptions&rdquo; below and it is written into each item&rsquo;s description
+              instead &mdash; the only customer-facing free-text field there is.
+            </p>
+            <p className="text-2xs text-slate-400">
               No display order, item timing, MRP, effective dates or nutrition &mdash; UrbanPiper has
               no field for any of them (§7). Enter them in the POS; they appear in the drop report.
             </p>
@@ -163,31 +269,70 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
 
         {tab === "modifiers" && (
           <>
+            <div className="rounded-lg border border-brand-200 bg-brand-50/50 px-3 py-2">
+              <p className="text-2xs font-semibold uppercase tracking-wider text-brand-800">
+                How pricing works here
+              </p>
+              <p className="mt-1 text-2xs leading-relaxed text-slate-600">
+                A <strong>group</strong> is the question (&ldquo;Choose your size&rdquo;) and carries
+                no price &mdash; UrbanPiper has no price field on option_groups. Each{" "}
+                <strong>option</strong> is an answer and carries its own. A free add-on is simply an
+                option priced 0.
+              </p>
+            </div>
+
+            <p className="pt-1 text-2xs font-semibold uppercase tracking-wider text-slate-500">
+              Modifier groups — the question, no price
+            </p>
             {list("option_groups").map((g, i) => (
               <Row key={i} onRemove={() => remove("option_groups", i)}>
                 <div className="grid gap-2 sm:grid-cols-4">
-                  <Small placeholder="ref_id *" value={g.ref_id} onChange={(e) => update("option_groups", i, { ref_id: e.target.value })} />
-                  <Small placeholder="title *" value={g.title} onChange={(e) => update("option_groups", i, { title: e.target.value })} />
-                  <Small placeholder="min_selectable" type="number" value={g.min_selectable} onChange={(e) => update("option_groups", i, { min_selectable: Number(e.target.value) })} />
-                  <Small placeholder="max_selectable (-1 = any)" type="number" value={g.max_selectable} onChange={(e) => update("option_groups", i, { max_selectable: Number(e.target.value) })} />
+                  <Small caption="Group ref_id *" placeholder="ref_id *" value={g.ref_id} onChange={(e) => update("option_groups", i, { ref_id: e.target.value })} />
+                  <Small caption="Title *" placeholder="title *" value={g.title} onChange={(e) => update("option_groups", i, { title: e.target.value })} />
+                  <Small caption="Min select" placeholder="min_selectable" type="number" value={g.min_selectable} onChange={(e) => update("option_groups", i, { min_selectable: Number(e.target.value) })} />
+                  <Small caption="Max select" placeholder="max_selectable (-1 = any)" type="number" value={g.max_selectable} onChange={(e) => update("option_groups", i, { max_selectable: Number(e.target.value) })} />
                 </div>
-                <Small placeholder="item_ref_ids (comma sep)" value={(g.item_ref_ids ?? []).join(",")} onChange={(e) => update("option_groups", i, { item_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
+                <Small caption="Attached to items" placeholder="item_ref_ids (comma sep)" value={(g.item_ref_ids ?? []).join(",")} onChange={(e) => update("option_groups", i, { item_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
               </Row>
             ))}
             <AddBtn onClick={() => add("option_groups", { ref_id: "", title: "", min_selectable: 0, max_selectable: 1, active: true, item_ref_ids: [] })}>
               + Add modifier group
             </AddBtn>
 
-            <p className="pt-2 text-2xs font-semibold uppercase tracking-wider text-slate-500">
-              Options — variants and modifiers both live here
+            <p className="pt-3 text-2xs font-semibold uppercase tracking-wider text-slate-500">
+              Options — the answers, each with its own price
             </p>
             {list("options").map((o, i) => (
               <Row key={i} onRemove={() => remove("options", i)}>
                 <div className="grid gap-2 sm:grid-cols-4">
-                  <Small placeholder="ref_id *" value={o.ref_id} onChange={(e) => update("options", i, { ref_id: e.target.value })} />
-                  <Small placeholder="title *" value={o.title} onChange={(e) => update("options", i, { title: e.target.value })} />
-                  <Small placeholder="price" type="number" value={o.price} onChange={(e) => update("options", i, { price: Number(e.target.value) })} />
-                  <Small placeholder="opt_grp_ref_ids (comma sep)" value={(o.opt_grp_ref_ids ?? []).join(",")} onChange={(e) => update("options", i, { opt_grp_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
+                  <Small caption="Option ref_id *" placeholder="ref_id *" value={o.ref_id} onChange={(e) => update("options", i, { ref_id: e.target.value })} />
+                  <Small caption="Title *" placeholder="title *" value={o.title} onChange={(e) => update("options", i, { title: e.target.value })} />
+                  <Small caption="Price (added to item)" placeholder="price" type="number" step="any" min="0" value={o.price} onChange={(e) => update("options", i, { price: Number(e.target.value) })} />
+                  <Small caption="In groups" placeholder="opt_grp_ref_ids (comma sep)" value={(o.opt_grp_ref_ids ?? []).join(",")} onChange={(e) => update("options", i, { opt_grp_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
+                </div>
+                <div className="mt-2 grid items-end gap-2 sm:grid-cols-[1fr_auto_auto]">
+                  <Small caption="Description" placeholder="description" value={o.description} onChange={(e) => update("options", i, { description: e.target.value })} />
+                  <label className="block">
+                    <span className={label + " mb-1"}>Dietary</span>
+                    <select
+                      value={o.food_type ?? "1"}
+                      onChange={(e) => update("options", i, { food_type: e.target.value })}
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control"
+                    >
+                      {FOOD_TYPES.map((f) => (
+                        <option key={f.value} value={f.value}>{f.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex h-[30px] items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={o.available !== false}
+                      onChange={(e) => update("options", i, { available: e.target.checked })}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600"
+                    />
+                    Available
+                  </label>
                 </div>
               </Row>
             ))}
@@ -195,6 +340,8 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
               + Add option
             </AddBtn>
             <p className="text-2xs text-slate-400">
+              Price is set per option, not per group &mdash; UrbanPiper has no group-level
+              price. Each option&apos;s price is sent as <code className="font-mono">options[].price</code>.
               A size variant (§8) is a group with min=1, max=1. Variant tax, MRP and default
               selection have no equivalent &mdash; they stay POS-side.
             </p>
@@ -222,16 +369,47 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
             {list("charges").map((c, i) => (
               <Row key={i} onRemove={() => remove("charges", i)}>
                 <div className="grid gap-2 sm:grid-cols-4">
-                  <Small placeholder="code *" value={c.code} onChange={(e) => update("charges", i, { code: e.target.value })} />
-                  <Small placeholder="title *" value={c.title} onChange={(e) => update("charges", i, { title: e.target.value })} />
-                  <Small placeholder="value" type="number" step="any" value={c.structure?.value} onChange={(e) => update("charges", i, { structure: { ...c.structure, value: Number(e.target.value) } })} />
-                  <Small placeholder="applicable_on (item.quantity)" value={c.structure?.applicable_on} onChange={(e) => update("charges", i, { structure: { ...c.structure, applicable_on: e.target.value || undefined } })} />
+                  <label className="block">
+                    <span className={label + " mb-1"}>Charge type *</span>
+                    <select
+                      value={c.code ?? ""}
+                      onChange={(e) => update("charges", i, { code: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control"
+                    >
+                      <option value="">Select…</option>
+                      {CHARGE_CODES.map((cc) => (
+                        <option key={cc.value} value={cc.value}>{cc.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Small caption="Title *" placeholder="title *" value={c.title} onChange={(e) => update("charges", i, { title: e.target.value })} />
+                  <Small
+                    caption={
+                      CHARGE_CODES.find((cc) => cc.value === c.code)?.unit === "%"
+                        ? "Percentage %"
+                        : "Amount ₹"
+                    }
+                    placeholder="value"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={c.structure?.value}
+                    onChange={(e) => update("charges", i, { structure: { ...c.structure, value: Number(e.target.value) } })}
+                  />
+                  <Small caption="Applicable on" placeholder="item.quantity (optional)" value={c.structure?.applicable_on} onChange={(e) => update("charges", i, { structure: { ...c.structure, applicable_on: e.target.value || undefined } })} />
                 </div>
               </Row>
             ))}
-            <AddBtn onClick={() => add("charges", { code: "", title: "", active: true, structure: { value: 0 }, item_ref_ids: ["all"] })}>
+            <AddBtn onClick={() => add("charges", { code: "DC_F", title: "", active: true, structure: { value: 0 }, item_ref_ids: ["all"] })}>
               + Add charge
             </AddBtn>
+            <p className="text-2xs text-slate-400">
+              Charge codes are a closed enum &mdash; only packaging and delivery exist, each as
+              fixed (<code className="font-mono">_F</code>) or percentage
+              (<code className="font-mono">_P</code>). Service charges are rejected by
+              UrbanPiper. The same <code className="font-mono">value</code> field means rupees
+              under _F and percent under _P.
+            </p>
             <p className="text-2xs text-slate-400">
               CGST and SGST are separate tax objects &mdash; there is no tax-type field. No
               inclusive/exclusive flag, no effective dates, and charge conditions are unsupported
