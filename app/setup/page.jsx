@@ -7,6 +7,7 @@ import JsonViewer from "../../components/JsonViewer";
 import StoreForm from "../../components/StoreForm";
 import MenuBuilder from "../../components/MenuBuilder";
 import DropReport from "../../components/DropReport";
+import JobsPanel from "../../components/JobsPanel";
 import CategoryTimings from "../../components/CategoryTimings";
 import {
   registerStore,
@@ -15,6 +16,7 @@ import {
   createWebhook,
   updateWebhook,
   getJobs,
+  clearJobs,
   getSchema,
   listKnownStores,
   setCategoryTimings
@@ -92,6 +94,8 @@ export default function SetupPage() {
   const [menu, setMenu] = useState(SAMPLE_MENU);
   // §19: a full sync is a complete snapshot and deletes anything absent.
   const [fullSync, setFullSync] = useState(false);
+  // Nutrition has no UrbanPiper field — this writes it into item descriptions.
+  const [appendNutrition, setAppendNutrition] = useState(false);
   const [timingGroups, setTimingGroups] = useState([]);
   const [schema, setSchema] = useState(null);
   const [knownStores, setKnownStores] = useState([]);
@@ -104,6 +108,7 @@ export default function SetupPage() {
   const [busy, setBusy] = useState(null);
   const [webhooks, setWebhooks] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     getJobs().then((r) => setJobs(r?.data ?? [])).catch(() => {});
@@ -281,12 +286,30 @@ export default function SetupPage() {
             </div>
           </div>
 
+          <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={appendNutrition}
+              onChange={(e) => setAppendNutrition(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+            />
+            <span>
+              <span className="font-semibold">Add nutrition to descriptions</span>
+              <span className="block text-2xs text-slate-500">
+                UrbanPiper has no nutrition field, so the figures are written into each
+                item&rsquo;s description as{" "}
+                <code className="font-mono">Per serving: 450 kcal &middot; Protein 12g</code>.
+                Customer-facing text, and re-pushing will not duplicate the line.
+              </span>
+            </span>
+          </label>
+
           <JsonViewer value={menu} label="See exactly what will be sent" collapsed />
 
           <button
             type="button"
             disabled={busy === "menu"}
-            onClick={() => run("menu", () => pushMenu(refId, { catalogue: menu, flush: fullSync }))}
+            onClick={() => run("menu", () => pushMenu(refId, { catalogue: menu, flush: fullSync, appendNutrition }))}
             className={primaryBtn + " mt-4 !bg-rose-600 hover:!bg-rose-700"}
           >
             {busy === "menu" ? "Sending..." : (fullSync ? "Full sync to " : "Update menu on ") + refId}
@@ -434,34 +457,24 @@ export default function SetupPage() {
         </div>
       )}
 
-      {jobs.length > 0 && (
-        <div className={card + " mt-6"}>
-          <h2 className="text-sm font-bold text-slate-900">Waiting on UrbanPiper</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Outlet and menu uploads are processed in the background. UrbanPiper sends the result
-            back once it&rsquo;s done &mdash; usually within a minute for an outlet, up to ten for a
-            menu.
-          </p>
-          <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100 text-sm">
-            {jobs.map((job) => (
-              <li key={job.id} className="flex flex-wrap items-center gap-3 py-2">
-                <span className="text-xs font-semibold text-slate-900">
-                  {job.kind === "menu_push" ? "Menu upload" : "Outlet registration"}
-                </span>
-                <span className="font-mono text-[11px] text-slate-400">{job.reference}</span>
-                <span
-                  className={
-                    "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase " +
-                    (job.callback ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")
-                  }
-                >
-                  {job.callback ? "done" : "in progress"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="mt-6">
+        <JobsPanel
+          jobs={jobs}
+          clearing={clearing}
+          onClear={async () => {
+            setClearing(true);
+            try {
+              await clearJobs();
+              const fresh = await getJobs();
+              setJobs(fresh?.data ?? []);
+            } catch (err) {
+              setError(err);
+            } finally {
+              setClearing(false);
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }
