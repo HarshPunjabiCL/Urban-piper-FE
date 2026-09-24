@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { inputCls, label, smallBtn } from "../lib/ui";
+import TagPicker from "./TagPicker";
 
 /**
  * Catalogue editor covering §6 to §11.
@@ -19,6 +20,13 @@ const CHARGE_CODES = [
   { value: "PC_P", label: "Packaging — percentage %", unit: "%" },
   { value: "DC_F", label: "Delivery — fixed ₹", unit: "₹" },
   { value: "DC_P", label: "Delivery — percentage %", unit: "%" }
+];
+
+// UrbanPiper has no allergen field; these ride in the description alongside
+// the nutrition line when "Add nutrition to descriptions" is on.
+const ALLERGENS = [
+  "gluten", "crustacean", "egg", "fish", "peanut", "soybeans", "milk",
+  "nuts", "celery", "mustard", "sesame", "sulphites", "lupin", "molluscs"
 ];
 
 const FOOD_TYPES = [
@@ -157,59 +165,12 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                   <Small placeholder="external_price" type="number" value={it.external_price} onChange={(e) => update("items", i, { external_price: Number(e.target.value) })} />
                 </div>
                 <Small placeholder="description" value={it.description} onChange={(e) => update("items", i, { description: e.target.value })} />
-                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-2.5">
-                  <p className={label}>Channel tags</p>
-                  <p className="mt-0.5 text-2xs text-slate-400">
-                    Keyed by channel, not general attributes &mdash; &ldquo;breakfast&rdquo; is a
-                    tag <em>on Zomato</em>, not a property of the dish. Each channel must be
-                    listed separately.
-                  </p>
-                  <div className="mt-2 space-y-1.5">
-                    {Object.entries(it.tags ?? {}).map(([channel, values], t) => (
-                      <div key={t} className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
-                        <Small
-                          placeholder="channel e.g. zomato"
-                          value={channel}
-                          onChange={(e) => {
-                            const next = {};
-                            for (const [k, v] of Object.entries(it.tags ?? {})) {
-                              next[k === channel ? e.target.value.toLowerCase() : k] = v;
-                            }
-                            update("items", i, { tags: next });
-                          }}
-                        />
-                        <Small
-                          placeholder="tags, comma separated e.g. breakfast, bestseller"
-                          value={(values ?? []).join(", ")}
-                          onChange={(e) =>
-                            update("items", i, {
-                              tags: {
-                                ...it.tags,
-                                [channel]: e.target.value.split(",").map((x) => x.trim()).filter(Boolean)
-                              }
-                            })
-                          }
-                        />
-                        <button
-                          type="button"
-                          aria-label="Remove channel tags"
-                          onClick={() => {
-                            const next = { ...it.tags };
-                            delete next[channel];
-                            update("items", i, { tags: Object.keys(next).length ? next : undefined });
-                          }}
-                          className="rounded border border-slate-300 px-2 text-xs text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ))}
-                    <AddBtn
-                      onClick={() => update("items", i, { tags: { ...(it.tags ?? {}), "": [] } })}
-                    >
-                      + Add channel tags
-                    </AddBtn>
-                  </div>
+                <div className="mt-3">
+                  <TagPicker
+                    value={it.tags}
+                    onChange={(tags) => update("items", i, { tags })}
+                    channels={platforms}
+                  />
                 </div>
 
                 <div className="mt-2 grid gap-2 sm:grid-cols-5">
@@ -235,6 +196,31 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                       }
                     />
                   ))}
+                </div>
+
+                <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5">
+                  <p className={label}>Allergens</p>
+                  <p className="mt-0.5 text-2xs text-slate-400">
+                    No UrbanPiper field &mdash; written into the description as
+                    &ldquo;Contains: &hellip;&rdquo; when the nutrition toggle below is on.
+                  </p>
+                  <div className="mt-1.5 grid gap-x-3 gap-y-1 sm:grid-cols-4 lg:grid-cols-7">
+                    {ALLERGENS.map((a) => (
+                      <label key={a} className="flex items-center gap-1.5 text-xs capitalize text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={(it.allergens ?? []).includes(a)}
+                          onChange={(e) => {
+                            const cur = it.allergens ?? [];
+                            const next = e.target.checked ? [...cur, a] : cur.filter((x) => x !== a);
+                            update("items", i, { allergens: next.length ? next : undefined });
+                          }}
+                          className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 text-brand-600"
+                        />
+                        <span className="truncate">{a}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-4">

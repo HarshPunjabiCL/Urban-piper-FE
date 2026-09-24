@@ -7,6 +7,7 @@ import JsonViewer from "../../components/JsonViewer";
 import StoreForm from "../../components/StoreForm";
 import MenuBuilder from "../../components/MenuBuilder";
 import DropReport from "../../components/DropReport";
+import JobsPanel from "../../components/JobsPanel";
 import CategoryTimings from "../../components/CategoryTimings";
 import {
   registerStore,
@@ -15,6 +16,7 @@ import {
   createWebhook,
   updateWebhook,
   getJobs,
+  clearJobs,
   getSchema,
   listKnownStores,
   setCategoryTimings
@@ -106,6 +108,7 @@ export default function SetupPage() {
   const [busy, setBusy] = useState(null);
   const [webhooks, setWebhooks] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     getJobs().then((r) => setJobs(r?.data ?? [])).catch(() => {});
@@ -454,34 +457,24 @@ export default function SetupPage() {
         </div>
       )}
 
-      {jobs.length > 0 && (
-        <div className={card + " mt-6"}>
-          <h2 className="text-sm font-bold text-slate-900">Waiting on UrbanPiper</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Outlet and menu uploads are processed in the background. UrbanPiper sends the result
-            back once it&rsquo;s done &mdash; usually within a minute for an outlet, up to ten for a
-            menu.
-          </p>
-          <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100 text-sm">
-            {jobs.map((job) => (
-              <li key={job.id} className="flex flex-wrap items-center gap-3 py-2">
-                <span className="text-xs font-semibold text-slate-900">
-                  {job.kind === "menu_push" ? "Menu upload" : "Outlet registration"}
-                </span>
-                <span className="font-mono text-[11px] text-slate-400">{job.reference}</span>
-                <span
-                  className={
-                    "rounded px-1.5 py-0.5 text-[10px] font-bold uppercase " +
-                    (job.callback ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")
-                  }
-                >
-                  {job.callback ? "done" : "in progress"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <div className="mt-6">
+        <JobsPanel
+          jobs={jobs}
+          clearing={clearing}
+          onClear={async () => {
+            setClearing(true);
+            try {
+              await clearJobs();
+              const fresh = await getJobs();
+              setJobs(fresh?.data ?? []);
+            } catch (err) {
+              setError(err);
+            } finally {
+              setClearing(false);
+            }
+          }}
+        />
+      </div>
     </div>
   );
 }
