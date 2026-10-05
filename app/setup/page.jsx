@@ -8,6 +8,7 @@ import StoreForm from "../../components/StoreForm";
 import MenuBuilder from "../../components/MenuBuilder";
 import DropReport from "../../components/DropReport";
 import JobsPanel from "../../components/JobsPanel";
+import { locateField } from "../../lib/fieldLabels";
 import CategoryTimings from "../../components/CategoryTimings";
 import {
   registerStore,
@@ -58,11 +59,21 @@ const SAMPLE_MENU = {
   charges: []
 };
 
+// The full event list from api-docs.urbanpiper.com/downstream/api/endpoints/setting-up-webhooks.
+// Note: inventory_update is the CATALOGUE ingestion callback; hub_menu_publish is
+// the later "published to aggregators" result — two different events.
 const EVENT_TYPES = [
   { value: "order_placed", label: "New orders" },
   { value: "order_status_update", label: "Order status changes" },
+  { value: "rider_status_update", label: "Rider status changes" },
   { value: "store_creation", label: "Outlet setup results" },
-  { value: "hub_menu_publish", label: "Menu upload results" }
+  { value: "store_action", label: "Outlet on/off results" },
+  { value: "inventory_update", label: "Menu upload results (ingestion)" },
+  { value: "hub_menu_publish", label: "Menu published to aggregators" },
+  { value: "item_state_toggle", label: "Item on/off results" },
+  { value: "option_state_toggle", label: "Choice on/off results" },
+  { value: "catalogue_timing_grp", label: "Category timing results" },
+  { value: "order_items_oos_processed", label: "Order item stock-out results" }
 ];
 
 function Step({ n, title, purpose, note, children }) {
@@ -92,8 +103,11 @@ export default function SetupPage() {
     active: true
   });
   const [menu, setMenu] = useState(SAMPLE_MENU);
-  // §19: a full sync is a complete snapshot and deletes anything absent.
-  const [fullSync, setFullSync] = useState(false);
+  // §19: every push is a full sync — a complete snapshot of the menu. Anything
+  // absent from the editor is deleted on UrbanPiper's side. Incremental mode
+  // was removed because a menu that can silently keep stale items is harder
+  // to reason about than one that always mirrors what is on screen.
+  const fullSync = true;
   // Nutrition has no UrbanPiper field — this writes it into item descriptions.
   const [appendNutrition, setAppendNutrition] = useState(false);
   const [timingGroups, setTimingGroups] = useState([]);
@@ -168,15 +182,37 @@ export default function SetupPage() {
               : error.message}
           </p>
           {error.validation && (
-            <ul className="mt-2 space-y-1">
-              {error.validation.map((v, i) => (
-                <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-                  <code className="rounded bg-white/70 px-1.5 py-0.5 font-mono text-2xs font-semibold text-rose-800">
-                    {v.field}
-                  </code>
-                  <span className="text-rose-800">{v.message}</span>
-                </li>
-              ))}
+            <ul className="mt-3 space-y-2">
+              {error.validation.map((v, i) => {
+                // Name the place on screen, not UrbanPiper's field path.
+                const at = locateField(v.field);
+                return (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-rose-200 bg-white/60 px-3 py-2"
+                  >
+                    {at ? (
+                      <p className="text-xs font-semibold text-rose-900">
+                        {at.where}
+                        {at.what ? (
+                          <>
+                            {" → "}
+                            <span className="underline decoration-rose-300 underline-offset-2">
+                              {at.what}
+                            </span>
+                          </>
+                        ) : null}
+                      </p>
+                    ) : (
+                      <p className="font-mono text-xs font-semibold text-rose-900">{v.field}</p>
+                    )}
+                    <p className="mt-0.5 text-xs leading-relaxed text-rose-800">{v.message}</p>
+                    {at && (
+                      <p className="mt-1 font-mono text-2xs text-rose-400">{v.field}</p>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
           {error.upstream && (
@@ -209,7 +245,18 @@ export default function SetupPage() {
                     <button
                       key={s.ref_id}
                       type="button"
-                      onClick={() => setStore(s.payload)}
+                      onClick={async () => {
+                        setStore(s.payload);
+                        // Load that outlet's last catalogue too, so step 2 does
+                        // not have to be retyped. Absent (never pushed) leaves
+                        // whatever is in the builder alone.
+                        try {
+                          const res = await getLastMenu(s.ref_id);
+                          if (res?.data?.catalogue) setMenu(res.data.catalogue);
+                        } catch {
+                          // Not fatal — the outlet still loaded.
+                        }
+                      }}
                       className={
                         "rounded-lg border px-3 py-2 text-left transition-colors " +
                         (active
@@ -252,41 +299,38 @@ export default function SetupPage() {
         >
           <MenuBuilder value={menu} onChange={setMenu} platforms={schema?.platforms ?? []} />
 
-          <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <p className={label}>Sync mode (§19)</p>
-            <div className="mt-2 flex flex-wrap gap-5">
-              <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input
-                  type="radio"
-                  checked={!fullSync}
-                  onChange={() => setFullSync(false)}
-                  className="mt-0.5 h-4 w-4 border-slate-300 text-brand-600"
-                />
-                <span>
-                  <span className="font-semibold">Incremental</span>
-                  <span className="block text-2xs text-slate-500">
-                    Adds and updates only. Nothing is deleted.
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm text-slate-700">
-                <input
-                  type="radio"
-                  checked={fullSync}
-                  onChange={() => setFullSync(true)}
-                  className="mt-0.5 h-4 w-4 border-slate-300 text-rose-600"
-                />
-                <span>
-                  <span className="font-semibold text-rose-700">Full sync</span>
-                  <span className="block text-2xs text-rose-600">
-                    Complete snapshot — anything not listed above is DELETED.
-                  </span>
-                </span>
-              </label>
+          <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3">
+              <div>
+                <p className={label}>Sync mode (§19)</p>
+                <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                  Full sync &mdash; complete snapshot
+                </p>
+              </div>
+              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-rose-700 ring-1 ring-inset ring-rose-200">
+                Replaces the live menu
+              </span>
             </div>
+            <dl className="grid gap-x-6 gap-y-3 px-4 py-3 text-xs sm:grid-cols-3">
+              <div>
+                <dt className="font-semibold text-slate-800">Listed above</dt>
+                <dd className="mt-0.5 text-slate-600">Created on UrbanPiper, or updated if the ID already exists.</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-rose-700">Not listed above</dt>
+                <dd className="mt-0.5 text-slate-600">Deleted from {refId}. The editor is the source of truth.</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-slate-800">Scope</dt>
+                <dd className="mt-0.5 text-slate-600">
+                  Items and choices on an outlet push. Categories, variants, taxes and charges are
+                  only replaced on a master-level push.
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          <label className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700">
+          <label className="mt-4 flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
             <input
               type="checkbox"
               checked={appendNutrition}
@@ -294,12 +338,11 @@ export default function SetupPage() {
               className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
             />
             <span>
-              <span className="font-semibold">Add nutrition to descriptions</span>
-              <span className="block text-2xs text-slate-500">
-                UrbanPiper has no nutrition field, so the figures are written into each
-                item&rsquo;s description as{" "}
-                <code className="font-mono">Per serving: 450 kcal &middot; Protein 12g</code>.
-                Customer-facing text, and re-pushing will not duplicate the line.
+              <span className="font-semibold text-slate-800">Also add nutrition to descriptions</span>
+              <span className="mt-0.5 block text-2xs text-slate-500">
+                Nutrition always goes to the Atlas Nutritional Info tab. Tick this to also write a{" "}
+                <code className="font-mono">Per serving: 450 kcal &middot; Protein 12g</code> line
+                into each item&rsquo;s customer-facing description. Re-pushing never duplicates it.
               </span>
             </span>
           </label>
@@ -312,9 +355,11 @@ export default function SetupPage() {
             onClick={() => run("menu", () => pushMenu(refId, { catalogue: menu, flush: fullSync, appendNutrition }))}
             className={primaryBtn + " mt-4 !bg-rose-600 hover:!bg-rose-700"}
           >
-            {busy === "menu" ? "Sending..." : (fullSync ? "Full sync to " : "Update menu on ") + refId}
+            {busy === "menu" ? "Sending..." : "Full sync to " + refId}
           </button>
-          <p className="mt-2 text-xs text-rose-700">Replaces the live menu. See the warning above.</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Sends the complete snapshot above. Items not listed are removed from {refId}.
+          </p>
           {result?.name === "menu" && (
             <DropReport dropped={result.data?.dropped} unrecognised={result.data?.unrecognised} />
           )}

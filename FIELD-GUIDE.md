@@ -1,0 +1,190 @@
+# Menu builder field guide
+
+What each box on the **Send the menu** step means, what to type in it, and the
+UrbanPiper API field it becomes. Written for someone opening this screen for
+the first time.
+
+The same worked example runs through every section:
+
+| Thing | ID | Shown to customer as |
+|---|---|---|
+| Category | `ITALLIAN` | Italian |
+| Item | `PIZZA-123` | Onion Pizza, 340 |
+| Variant (question) | `PIZZA-SIZE` | Choose your size |
+| Choice (answer) | `PIZZA-REG` | Regular, +0 |
+| Choice (answer) | `PIZZA-LARGE` | Large, +150 |
+
+## The one rule: IDs are the glue
+
+Every tab has an **ID** box. Customers never see IDs. Some ID boxes **define**
+a code (Category ID, Item ID, Variant ID) and other boxes **point at** one
+(Category ID(s) on an item, Applies to items, Belongs to variant(s)). A
+pointing box must contain exactly the text of a defining box, same spelling
+and case, or the two are not linked.
+
+```
+Categories tab      Items tab                 Modifiers tab
+--------------      ---------                 -------------
+Category ID  <----  Category ID(s)
+                    Item ID         <-------  Variant: Applies to items
+                                              Variant ID  <----  Choice: Belongs to variant(s)
+```
+
+Fill the tabs in this order: **Categories, Items, Modifiers, Taxes & charges.**
+The push is checked before it is sent. A choice that names a variant that does
+not exist, or a variant that names an item that does not exist, stops the push
+and names the exact box.
+
+---
+
+## Categories tab
+
+A category is a heading on the Swiggy / Zomato menu.
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Category ID * | The code items point at. Each item's Category ID(s) box must contain exactly this. | `ITALLIAN` | `categories[].ref_id` |
+| Category name * | The heading customers read. | `Italian` | `categories[].name` |
+| Display order | Position on the menu. Lower shows first. | `1` | `categories[].sort_order` |
+| Parent category ID | Only for a sub-category: the Category ID it sits under. Blank for a top-level heading. | blank | `categories[].parent_ref_id` |
+| Description | Optional line under the heading. | blank | `categories[].description` |
+
+Category timings (breakfast menu only until 11:00, for example) are set in the
+separate **Category timings** panel below the menu builder, not here.
+
+---
+
+## Items tab
+
+One row is one dish.
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Item ID / SKU * | Your POS code for the dish. Orders from Swiggy / Zomato arrive carrying this ID, so it **must** be the code the POS uses. | `PIZZA-123` | `items[].ref_id` |
+| Item name * | Name customers see. | `Onion Pizza` | `items[].title` |
+| Price (Rs) * | Base price before any choice is added. | `340` | `items[].price` |
+| Category ID(s) * | Category ID from the Categories tab. Comma-separate to list under several headings. | `ITALLIAN` | `items[].category_ref_ids` |
+| Veg / non-veg * | Dietary mark next to the item. | Veg | `items[].food_type` (`1` veg, `2` non-veg, `3` egg, `5` not applicable) |
+| Aggregator price (Rs) | Price on Swiggy / Zomato when it differs from the base. Blank uses Price. | blank | `items[].external_price` |
+| Description | Customer-facing text under the name. | blank | `items[].description` |
+| Item tags | Per-channel tags such as Bestseller. Channel list comes from the account. | | `items[].tags` |
+| Nutritional info | Calories, protein, fat, etc. Goes to the Atlas Nutritional Info tab. Sent exactly as typed, no unit conversion. | `73` kcal | `items[].key_value_groups` |
+| Allergens | Tick boxes. Written into the description as a `Contains:` line. | Milk | `items[].description` |
+| More fields | Images, per-channel price, weight, serves, strike-through price, stock, internal name, sold at store, fulfilment modes. | | see `ItemExtras.jsx` |
+| Available | Untick to hide the item without deleting it. | ticked | `items[].available` |
+| Recommended | Marks the item as recommended on the app. | | `items[].recommended` |
+
+---
+
+## Modifiers tab
+
+UrbanPiper has no "variant" or "modifier" entity. It has **option groups**
+(a question) and **options** (the answers). This screen calls them Variants
+and Choices because that is the vocabulary the POS team uses.
+
+A variant carries **no price**. Every choice carries its own extra amount,
+added on top of the item price. A free add-on is a choice priced 0.
+
+### Variants (the question)
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Variant ID * | The code choices point at. Each choice's Belongs to variant(s) box must contain exactly this. | `PIZZA-SIZE` | `option_groups[].ref_id` |
+| Variant name * | The question customers see. | `Choose your size` | `option_groups[].title` |
+| Type * | Sets Min and Max for you. See table below. | Variant, pick exactly one | derived |
+| Min choices | Fewest answers a customer must pick. `0` = optional. | `1` | `option_groups[].min_selectable` |
+| Max choices | Most answers a customer may pick. `-1` = no limit. | `1` | `option_groups[].max_selectable` |
+| Applies to items * | Item ID(s) that ask this question. Comma-separate for several. | `PIZZA-123` | `option_groups[].item_ref_ids` |
+
+**Type** is a convenience. UrbanPiper only knows Min and Max.
+
+| Type | Min | Max | Use for |
+|---|---|---|---|
+| Variant, pick exactly one | 1 | 1 | Size, crust, portion |
+| Add-on, pick any, optional | 0 | -1 | Toppings, extras |
+| Pick at least one | 1 | -1 | "Choose at least one sauce" |
+| Custom | you set | you set | Anything else, e.g. pick 2 of 5 |
+
+### Choices (the answers)
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Choice ID * | Any unique code. Nothing else refers to it. | `PIZZA-LARGE` | `options[].ref_id` |
+| Choice name * | The answer customers see. | `Large` | `options[].title` |
+| Price (Rs, added to item) * | Extra amount on top of the item price. `0` = free. | `150` | `options[].price` |
+| Belongs to variant(s) * | Variant ID(s) this answers. Comma-separate to reuse under several questions. | `PIZZA-SIZE` | `options[].opt_grp_ref_ids` |
+| Description | Optional. | blank | `options[].description` |
+| Type (veg / non-veg) | Dietary mark on the choice. | Veg | `options[].food_type` |
+| Available | Untick to hide the choice. | ticked | `options[].available` |
+
+### Worked example, end to end
+
+```
+Items tab
+  Item ID PIZZA-123, name Onion Pizza, price 340, Category ID(s) ITALLIAN
+
+Modifiers tab, Variants
+  Variant ID PIZZA-SIZE, name "Choose your size",
+  Type "Variant, pick exactly one", Applies to items PIZZA-123
+
+Modifiers tab, Choices
+  Choice ID PIZZA-REG,   name Regular, price 0,   Belongs to PIZZA-SIZE
+  Choice ID PIZZA-LARGE, name Large,   price 150, Belongs to PIZZA-SIZE
+```
+
+On the app: Onion Pizza under Italian at 340. The customer must pick a size.
+Regular keeps it at 340, Large makes it 490.
+
+To add optional toppings: a second variant `PIZZA-TOPPINGS`, name "Add
+toppings", Type "Add-on, pick any", applies to `PIZZA-123`. Then choices
+`TOP-CHEESE` at 40 and `TOP-OLIVES` at 30, both belonging to `PIZZA-TOPPINGS`.
+
+---
+
+## Taxes & charges tab
+
+### Taxes
+
+A tax is a percentage on the item price. CGST and SGST are **two separate
+rows**. UrbanPiper validates both the code and the name.
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Tax code * | Exactly one of `CGST_P`, `SGST_P`, `IGST_P`, `VAT_P`. Anything else is rejected. | `CGST_P` | `taxes[].code` |
+| Tax name * | Must contain GST, CGST, SGST, VAT, Municipality or Kerala as a separate word. | `CGST` | `taxes[].title` |
+| Rate % | Percentage of the item price. | `2.5` | `taxes[].structure.value` |
+| Applies to items * | `all` for every item, or Item IDs comma-separated. | `all` | `taxes[].item_ref_ids` |
+
+### Charges
+
+A charge is a packaging or delivery fee. Service charges do not exist in
+UrbanPiper and are rejected.
+
+| Box | What to type | Example | API field |
+|---|---|---|---|
+| Charge type * | Packaging or Delivery, each as fixed rupees or a percentage. | Packaging, fixed | `charges[].code` (`PC_F`, `PC_P`, `DC_F`, `DC_P`) |
+| Charge name * | Name shown on the bill. | `Packaging` | `charges[].title` |
+| Amount / Percentage | Rupees for a fixed charge, percent for a percentage charge. The label changes with the type. | `20` | `charges[].structure.value` |
+| Applicable on | Blank charges once per order. `item.quantity` charges per unit ordered. | blank | `charges[].structure.applicable_on` |
+
+---
+
+## Sync mode
+
+Every push is a **full sync**. The editor is the complete snapshot of the
+menu. Anything not listed is deleted from that outlet on UrbanPiper's side.
+
+On an **outlet** push (for example `KN- Group`) this replaces items and
+choices only. Categories, variants, taxes and charges are only replaced on a
+**master-level** push (location `-1`).
+
+---
+
+## Where the rules live in code
+
+| Concern | File |
+|---|---|
+| Every field above, its label and hint | `components/MenuBuilder.jsx`, `components/ItemExtras.jsx` |
+| Which fields UrbanPiper accepts, closed enums, validation, ID cross-checks | `backend/src/schema/catalogue.js` |
+| Fields the POS has that UrbanPiper cannot take, with the reason | `backend/src/schema/unsupported.js` |
+| Mapping an API error path back to a box on screen | `lib/fieldLabels.js` |

@@ -10,6 +10,18 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Numeric fields are typed, not nudged: hide the browser's spinner arrows.
+     The input stays type="number" so the keyboard and validation are unchanged. */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   /* Numbers that change in place (money, counts, timers) must not reflow. */
   .tnum,
   td,
