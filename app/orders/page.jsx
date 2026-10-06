@@ -199,7 +199,8 @@ export default function OrdersPage() {
     }
   }
 
-  const newOrders = orders.filter((o) => o.status === "PLACED");
+  // "Placed" (mixed case) is what UrbanPiper's status echo used to leave behind.
+  const newOrders = orders.filter((o) => String(o.status).toUpperCase() === "PLACED");
   const active = orders.filter((o) => ["Acknowledged", "Food Ready", "Dispatched"].includes(o.status));
   const done = orders.filter((o) => ["Completed", "Cancelled"].includes(o.status));
 
