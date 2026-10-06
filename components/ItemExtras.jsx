@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { label } from "../lib/ui";
+import NumberInput from "./NumberInput";
 
 /**
  * The item fields UrbanPiper accepts that the main row has no space for.
@@ -13,13 +14,17 @@ import { label } from "../lib/ui";
  */
 const FULFILMENT = ["delivery", "pickup"];
 
-const Field = ({ caption, hint, ...rest }) => (
+const FIELD_CLS =
+  "w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control outline-none transition-colors hover:border-slate-400 focus:border-brand-500";
+
+const Field = ({ caption, hint, type, ...rest }) => (
   <label className="block">
     <span className={label + " mb-1"}>{caption}</span>
-    <input
-      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control outline-none transition-colors hover:border-slate-400 focus:border-brand-500"
-      {...rest}
-    />
+    {type === "number" ? (
+      <NumberInput className={FIELD_CLS} {...rest} />
+    ) : (
+      <input type={type} className={FIELD_CLS} {...rest} />
+    )}
     {hint && <span className="mt-0.5 block text-2xs text-slate-400">{hint}</span>}
   </label>
 );
@@ -206,12 +211,10 @@ export default function ItemExtras({ item, onChange, platforms = [] }) {
                     }}
                     className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs shadow-control"
                   />
-                  <input
-                    type="number"
-                    step="any"
+                  <NumberInput
                     min="0"
                     placeholder="price"
-                    value={row.price ?? ""}
+                    value={row.price}
                     onChange={(e) => {
                       const next = [...pricing];
                       next[n] = { ...row, price: Number(e.target.value) };

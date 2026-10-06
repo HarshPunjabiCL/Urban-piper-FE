@@ -10,6 +10,10 @@ import DropReport from "../../components/DropReport";
 import JobsPanel from "../../components/JobsPanel";
 import { locateField } from "../../lib/fieldLabels";
 import CategoryTimings from "../../components/CategoryTimings";
+
+// Where the half-built outlet + menu lives between page loads. Per browser,
+// never sent anywhere; the backend's job log is the record of what was pushed.
+const DRAFT_KEY = "urbanpiper-poc:setup-draft";
 import {
   registerStore,
   pushMenu,
@@ -123,6 +127,47 @@ export default function SetupPage() {
   const [webhooks, setWebhooks] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [clearing, setClearing] = useState(false);
+
+  // Steps 1 and 2 survive a refresh. Everything typed is mirrored to this
+  // browser's storage and restored on load, so a validation error or an
+  // accidental reload does not cost a half-built menu. `hydrated` stops the
+  // first render's defaults from overwriting the saved draft.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (d.store && typeof d.store === "object") setStore(d.store);
+        if (d.menu && typeof d.menu === "object") setMenu(d.menu);
+        if (Array.isArray(d.timingGroups)) setTimingGroups(d.timingGroups);
+        if (typeof d.appendNutrition === "boolean") setAppendNutrition(d.appendNutrition);
+      }
+    } catch {
+      // Private window or blocked storage — start from the defaults.
+    }
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ store, menu, timingGroups, appendNutrition })
+      );
+    } catch {
+      // Nothing to do — the page still works, it just will not remember.
+    }
+  }, [hydrated, store, menu, timingGroups, appendNutrition]);
+
+  function resetDraft() {
+    try {
+      window.localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    setMenu(SAMPLE_MENU);
+    setTimingGroups([]);
+    setAppendNutrition(false);
+  }
 
   useEffect(() => {
     getJobs().then((r) => setJobs(r?.data ?? [])).catch(() => {});
@@ -298,6 +343,17 @@ export default function SetupPage() {
           note="Two items, one category — the smallest menu that can produce an order. Real menus can hold up to 2,000 items."
         >
           <MenuBuilder value={menu} onChange={setMenu} platforms={schema?.platforms ?? []} />
+          <p className="mt-2 text-2xs text-slate-400">
+            What you type here is kept in this browser until you change it, and loads back
+            automatically after a refresh. Picking an outlet above loads the menu last sent to it.{" "}
+            <button
+              type="button"
+              onClick={resetDraft}
+              className="font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-rose-600"
+            >
+              Reset step 2 to the sample menu
+            </button>
+          </p>
 
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3">

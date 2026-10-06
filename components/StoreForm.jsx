@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import NumberInput from "./NumberInput";
 import { inputCls, label } from "../lib/ui";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -21,12 +22,16 @@ const UNMAPPABLE = [
   ["offline_reason", "Offline reason", "§4 — the action API takes no reason"]
 ];
 
-const Field = ({ id, children, hint, ...rest }) => (
+const Field = ({ id, children, hint, type, ...rest }) => (
   <div>
     <label htmlFor={id} className={label}>
       {children}
     </label>
-    <input id={id} className={inputCls + " mt-1.5"} {...rest} />
+    {type === "number" ? (
+      <NumberInput id={id} className={inputCls + " mt-1.5"} {...rest} />
+    ) : (
+      <input id={id} type={type} className={inputCls + " mt-1.5"} {...rest} />
+    )}
     {hint && <p className="mt-1 text-2xs text-slate-400">{hint}</p>}
   </div>
 );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import NumberInput from "./NumberInput";
 import { inputCls, label, smallBtn } from "../lib/ui";
 import TagPicker from "./TagPicker";
 import ItemExtras from "./ItemExtras";
@@ -113,16 +114,29 @@ const Example = ({ children }) => (
   </code>
 );
 
-const SmallInput = ({ placeholder, value, onChange, type = "text", ...rest }) => (
-  <input
-    type={type}
-    placeholder={placeholder}
-    value={value ?? ""}
-    onChange={onChange}
-    className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control outline-none transition-colors hover:border-slate-400 focus:border-brand-500"
-    {...rest}
-  />
-);
+const SMALL_INPUT_CLS =
+  "w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs shadow-control outline-none transition-colors hover:border-slate-400 focus:border-brand-500";
+
+// Numeric fields are typed, never nudged with spinner arrows — see NumberInput.
+const SmallInput = ({ placeholder, value, onChange, type = "text", ...rest }) =>
+  type === "number" ? (
+    <NumberInput
+      placeholder={placeholder}
+      value={value}
+      onChange={onChange}
+      className={SMALL_INPUT_CLS}
+      {...rest}
+    />
+  ) : (
+    <input
+      type={type}
+      placeholder={placeholder}
+      value={value ?? ""}
+      onChange={onChange}
+      className={SMALL_INPUT_CLS}
+      {...rest}
+    />
+  );
 
 const AddBtn = ({ onClick, children }) => (
   <button
