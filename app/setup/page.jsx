@@ -10,10 +10,7 @@ import DropReport from "../../components/DropReport";
 import JobsPanel from "../../components/JobsPanel";
 import { locateField } from "../../lib/fieldLabels";
 import CategoryTimings from "../../components/CategoryTimings";
-
-// Where the half-built outlet + menu lives between page loads. Per browser,
-// never sent anywhere; the backend's job log is the record of what was pushed.
-const DRAFT_KEY = "urbanpiper-poc:setup-draft";
+import AvailabilityPanel from "../../components/AvailabilityPanel";
 import {
   registerStore,
   pushMenu,
@@ -27,6 +24,10 @@ import {
   setCategoryTimings
 } from "../../lib/api";
 import { card, primaryBtn, secondaryBtn, inputCls, label } from "../../lib/ui";
+
+// Where the half-built outlet + menu lives between page loads. Per browser,
+// never sent anywhere; the backend's job log is the record of what was pushed.
+const DRAFT_KEY = "urbanpiper-poc:setup-draft";
 
 /**
  * A deliberately tiny menu — enough to place one order against.
@@ -549,6 +550,15 @@ export default function SetupPage() {
               ))}
             </ul>
           )}
+        </Step>
+
+        <Step
+          n={4}
+          title="Switch the outlet or items on and off"
+          purpose="Day-to-day control without resending the menu: take the outlet off the apps at closing time, or mark a dish out of stock when the kitchen runs out."
+          note="Both calls are queued by UrbanPiper and confirmed on the Activity page through the store-action and item-toggle webhooks. An optional time switches things back on automatically."
+        >
+          <AvailabilityPanel refId={refId} menu={menu} />
         </Step>
       </div>
 
