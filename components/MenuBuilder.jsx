@@ -10,7 +10,10 @@ import ItemExtras from "./ItemExtras";
  *
  * The one thing worth understanding here: there is no Variant entity in
  * UrbanPiper. A variant is an option group plus options, exactly like a
- * modifier. The Variants block below is a POS-side convenience that the backend
+ * modifier. On screen: "Modifier group" = option group (the question),
+ * "Variant / modifier" = option (the answer, with the price). Matches the POS
+ * spec, where a Variant is Small/Large with a price (section 8) and a Modifier
+ * Group holds Modifiers (section 9). The block below is a POS-side convenience that the backend
  * translates (buildVariantAsOptions) — which is why variant tax, MRP, default
  * selection and ordering appear in the drop report rather than in the payload.
  */
@@ -34,9 +37,9 @@ const ALLERGENS = [
 // keeps min/max on the group — so the type is derived from, and writes, those
 // two numbers. Picking one sets min/max; editing min/max by hand shows Custom.
 const GROUP_TYPES = [
-  { value: "variant", label: "Variant — pick exactly one", min: 1, max: 1 },
-  { value: "addon", label: "Add-on — pick any, optional", min: 0, max: -1 },
-  { value: "required_multi", label: "Pick at least one", min: 1, max: -1 },
+  { value: "variant", label: "Pick exactly one (sizes, crusts)", min: 1, max: 1 },
+  { value: "addon", label: "Pick any, optional (toppings, extras)", min: 0, max: -1 },
+  { value: "required_multi", label: "Pick at least one (sauces)", min: 1, max: -1 },
   { value: "custom", label: "Custom min / max", min: null, max: null }
 ];
 const groupTypeOf = (g) =>
@@ -271,7 +274,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                   />
                   <Small
                     caption="Price (Rs) *"
-                    hint="Base price before any choice (size, topping) is added. Example: 340"
+                    hint="Base price before any variant or modifier (size, topping) is added. Example: 340"
                     placeholder="e.g. 340"
                     type="number"
                     value={it.price}
@@ -404,10 +407,12 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
           <>
             <Guide title="How modifiers work">
               <p>
-                A <strong>variant</strong> is a question the customer is asked (&ldquo;Choose your
-                size&rdquo;). It carries no price. A <strong>choice</strong> is one answer
-                (&ldquo;Large&rdquo;) and carries the extra amount added to the item price. A free
-                add-on is a choice priced 0.
+                A <strong>modifier group</strong> is a question the customer is asked (&ldquo;Choose
+                your size&rdquo;, &ldquo;Add toppings&rdquo;). It carries no price. A{" "}
+                <strong>variant / modifier</strong> is one answer (&ldquo;Large&rdquo;, &ldquo;Extra
+                cheese&rdquo;) and carries its own price, added to the item price. A size is a
+                variant; a topping is a modifier; UrbanPiper stores both the same way. A free add-on
+                is priced 0.
               </p>
               <p>Three IDs link everything together:</p>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -416,12 +421,12 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                   <p>Item ID <Example>PIZZA-123</Example></p>
                 </div>
                 <div className="rounded-md bg-white p-2 ring-1 ring-slate-200">
-                  <p className="font-semibold text-slate-800">2. Variant</p>
-                  <p>Variant ID <Example>PIZZA-SIZE</Example></p>
+                  <p className="font-semibold text-slate-800">2. Modifier group</p>
+                  <p>Group ID <Example>PIZZA-SIZE</Example></p>
                   <p>Applies to items <Example>PIZZA-123</Example></p>
                 </div>
                 <div className="rounded-md bg-white p-2 ring-1 ring-slate-200">
-                  <p className="font-semibold text-slate-800">3. Choices</p>
+                  <p className="font-semibold text-slate-800">3. Variants / modifiers</p>
                   <p><Example>PIZZA-REG</Example> Regular, +0, belongs to <Example>PIZZA-SIZE</Example></p>
                   <p><Example>PIZZA-LARGE</Example> Large, +150, belongs to <Example>PIZZA-SIZE</Example></p>
                 </div>
@@ -432,20 +437,20 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
             </Guide>
 
             <p className="pt-1 text-2xs font-semibold uppercase tracking-wider text-slate-500">
-              Variants — the question (e.g. Size, Toppings), no price
+              Modifier groups — the question (e.g. Choose your size, Add toppings), no price
             </p>
             {list("option_groups").map((g, i) => (
               <Row key={i} onRemove={() => remove("option_groups", i)}>
                 <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1.4fr]">
                   <Small
-                    caption="Variant ID *"
-                    hint="The code choices point at. Each choice's Belongs to variant(s) box must contain exactly this. Not shown to customers. Example: PIZZA-SIZE"
+                    caption="Group ID *"
+                    hint="The code variants point at. Each variant's Belongs to group(s) box must contain exactly this. Not shown to customers. Example: PIZZA-SIZE"
                     placeholder="e.g. PIZZA-SIZE"
                     value={g.ref_id}
                     onChange={(e) => update("option_groups", i, { ref_id: e.target.value })}
                   />
                   <Small
-                    caption="Variant name *"
+                    caption="Group name *"
                     hint="The question customers see. Example: Choose your size"
                     placeholder="e.g. Choose your size"
                     value={g.title}
@@ -466,13 +471,13 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                       ))}
                     </select>
                     <span className="mt-0.5 block text-2xs leading-snug text-slate-400">
-                      Fills Min / Max for you. Variant = must pick exactly one (sizes). Add-on = any number, or none (toppings).
+                      How many answers the customer may pick. Fills Min / Max for you.
                     </span>
                   </label>
                 </div>
                 <div className="mt-2 grid gap-2 sm:grid-cols-[100px_100px_1fr]">
                   <Small
-                    caption="Min choices"
+                    caption="Min picks"
                     hint="Fewest answers a customer must pick. 0 = optional."
                     placeholder="0"
                     type="number"
@@ -481,7 +486,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                     onChange={(e) => update("option_groups", i, { min_selectable: Number(e.target.value) })}
                   />
                   <Small
-                    caption="Max choices"
+                    caption="Max picks"
                     hint="Most answers a customer may pick. -1 = no limit."
                     placeholder="-1 = any"
                     type="number"
@@ -497,27 +502,60 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                     onChange={(e) => update("option_groups", i, { item_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
                   />
                 </div>
+                <div className="mt-2 grid items-end gap-2 sm:grid-cols-[140px_1fr]">
+                  <Small
+                    caption="Display order"
+                    hint="Order of questions on the item. Lower first. Example: 1"
+                    placeholder="e.g. 1"
+                    type="number"
+                    min="0"
+                    value={g.sort_order}
+                    onChange={(e) => update("option_groups", i, { sort_order: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  />
+                  <div className="flex flex-wrap items-center gap-4 pb-4">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={g.active !== false}
+                        onChange={(e) => update("option_groups", i, { active: e.target.checked })}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600"
+                      />
+                      Active
+                      <span className="text-2xs text-slate-400">(untick to hide the whole question)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(g.multi_options_enabled)}
+                        onChange={(e) => update("option_groups", i, { multi_options_enabled: e.target.checked || undefined })}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600"
+                      />
+                      Same variant can be picked more than once
+                      <span className="text-2xs text-slate-400">(e.g. 2 x extra cheese)</span>
+                    </label>
+                  </div>
+                </div>
               </Row>
             ))}
             <AddBtn onClick={() => add("option_groups", { ref_id: "", title: "", min_selectable: 0, max_selectable: 1, active: true, item_ref_ids: [] })}>
-              + Add variant
+              + Add modifier group
             </AddBtn>
 
             <p className="pt-3 text-2xs font-semibold uppercase tracking-wider text-slate-500">
-              Choices — the answers (e.g. Small, Large), each with its own price
+              Variants / modifiers — the answers (e.g. Small, Large, Extra cheese), each with its own price
             </p>
             {list("options").map((o, i) => (
               <Row key={i} onRemove={() => remove("options", i)}>
                 <div className="grid gap-2 sm:grid-cols-4">
                   <Small
-                    caption="Choice ID *"
+                    caption="Variant ID *"
                     hint="Any unique code for this answer. Nothing else refers to it. Not shown to customers. Example: PIZZA-LARGE"
                     placeholder="e.g. PIZZA-LARGE"
                     value={o.ref_id}
                     onChange={(e) => update("options", i, { ref_id: e.target.value })}
                   />
                   <Small
-                    caption="Choice name *"
+                    caption="Variant name *"
                     hint="The answer customers see. Example: Large"
                     placeholder="e.g. Large"
                     value={o.title}
@@ -534,20 +572,29 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                     onChange={(e) => update("options", i, { price: Number(e.target.value) })}
                   />
                   <Small
-                    caption="Belongs to variant(s) *"
-                    hint="Must exactly match a Variant ID above. Comma-separate to offer the same answer under several questions. Example: PIZZA-SIZE"
+                    caption="Belongs to group(s) *"
+                    hint="Must exactly match a Group ID above. Comma-separate to offer the same answer under several questions. Example: PIZZA-SIZE"
                     placeholder="e.g. PIZZA-SIZE"
                     value={(o.opt_grp_ref_ids ?? []).join(",")}
                     onChange={(e) => update("options", i, { opt_grp_ref_ids: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
                   />
                 </div>
-                <div className="mt-2 grid items-end gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <div className="mt-2 grid items-end gap-2 sm:grid-cols-[1fr_120px_auto_auto_auto]">
                   <Small
                     caption="Description"
-                    hint="Optional text under the choice."
+                    hint="Optional text under the variant."
                     placeholder="optional"
                     value={o.description}
                     onChange={(e) => update("options", i, { description: e.target.value })}
+                  />
+                  <Small
+                    caption="Display order"
+                    hint="Order within the question. Lower first."
+                    placeholder="e.g. 1"
+                    type="number"
+                    min="0"
+                    value={o.sort_order}
+                    onChange={(e) => update("options", i, { sort_order: e.target.value === "" ? undefined : Number(e.target.value) })}
                   />
                   <label className="block">
                     <span className={label + " mb-1"}>Type (veg / non-veg)</span>
@@ -570,17 +617,28 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                     />
                     Available
                   </label>
+                  <label className="flex h-[30px] items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(o.recommended)}
+                      onChange={(e) => update("options", i, { recommended: e.target.checked || undefined })}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-brand-600"
+                    />
+                    Recommended
+                  </label>
                 </div>
               </Row>
             ))}
             <AddBtn onClick={() => add("options", { ref_id: "", title: "", price: 0, available: true, opt_grp_ref_ids: [] })}>
-              + Add choice
+              + Add variant / modifier
             </AddBtn>
             <p className="text-2xs text-slate-400">
               Price is set per option, not per group &mdash; UrbanPiper has no group-level
               price. Each option&apos;s price is sent as <code className="font-mono">options[].price</code>.
-              A size variant (§8) is a group with min=1, max=1. Variant tax, MRP and default
-              selection have no equivalent &mdash; they stay POS-side.
+              A size variant (§8) is a group with min=1, max=1. From the POS spec, these have no
+              UrbanPiper field and stay POS-side: variant / modifier <strong>tax</strong>,{" "}
+              <strong>MRP</strong>, <strong>default selection</strong>, and{" "}
+              <strong>timing</strong> below category level.
             </p>
           </>
         )}

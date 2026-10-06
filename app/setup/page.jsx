@@ -71,7 +71,7 @@ const EVENT_TYPES = [
   { value: "inventory_update", label: "Menu upload results (ingestion)" },
   { value: "hub_menu_publish", label: "Menu published to aggregators" },
   { value: "item_state_toggle", label: "Item on/off results" },
-  { value: "option_state_toggle", label: "Choice on/off results" },
+  { value: "option_state_toggle", label: "Variant / modifier on/off results" },
   { value: "catalogue_timing_grp", label: "Category timing results" },
   { value: "order_items_oos_processed", label: "Order item stock-out results" }
 ];
@@ -323,7 +323,7 @@ export default function SetupPage() {
               <div>
                 <dt className="font-semibold text-slate-800">Scope</dt>
                 <dd className="mt-0.5 text-slate-600">
-                  Items and choices on an outlet push. Categories, variants, taxes and charges are
+                  Items and variants on an outlet push. Categories, modifier groups, taxes and charges are
                   only replaced on a master-level push.
                 </dd>
               </div>

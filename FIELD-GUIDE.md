@@ -10,15 +10,15 @@ The same worked example runs through every section:
 |---|---|---|
 | Category | `ITALLIAN` | Italian |
 | Item | `PIZZA-123` | Onion Pizza, 340 |
-| Variant (question) | `PIZZA-SIZE` | Choose your size |
-| Choice (answer) | `PIZZA-REG` | Regular, +0 |
-| Choice (answer) | `PIZZA-LARGE` | Large, +150 |
+| Modifier group (question) | `PIZZA-SIZE` | Choose your size |
+| Variant (answer) | `PIZZA-REG` | Regular, +0 |
+| Variant (answer) | `PIZZA-LARGE` | Large, +150 |
 
 ## The one rule: IDs are the glue
 
 Every tab has an **ID** box. Customers never see IDs. Some ID boxes **define**
-a code (Category ID, Item ID, Variant ID) and other boxes **point at** one
-(Category ID(s) on an item, Applies to items, Belongs to variant(s)). A
+a code (Category ID, Item ID, Group ID) and other boxes **point at** one
+(Category ID(s) on an item, Applies to items, Belongs to group(s)). A
 pointing box must contain exactly the text of a defining box, same spelling
 and case, or the two are not linked.
 
@@ -26,13 +26,13 @@ and case, or the two are not linked.
 Categories tab      Items tab                 Modifiers tab
 --------------      ---------                 -------------
 Category ID  <----  Category ID(s)
-                    Item ID         <-------  Variant: Applies to items
-                                              Variant ID  <----  Choice: Belongs to variant(s)
+                    Item ID         <-------  Modifier group: Applies to items
+                                              Group ID  <----  Variant: Belongs to group(s)
 ```
 
 Fill the tabs in this order: **Categories, Items, Modifiers, Taxes & charges.**
-The push is checked before it is sent. A choice that names a variant that does
-not exist, or a variant that names an item that does not exist, stops the push
+The push is checked before it is sent. A variant that names a group that does
+not exist, or a group that names an item that does not exist, stops the push
 and names the exact box.
 
 ---
@@ -62,7 +62,7 @@ One row is one dish.
 |---|---|---|---|
 | Item ID / SKU * | Your POS code for the dish. Orders from Swiggy / Zomato arrive carrying this ID, so it **must** be the code the POS uses. | `PIZZA-123` | `items[].ref_id` |
 | Item name * | Name customers see. | `Onion Pizza` | `items[].title` |
-| Price (Rs) * | Base price before any choice is added. | `340` | `items[].price` |
+| Price (Rs) * | Base price before any variant or modifier is added. | `340` | `items[].price` |
 | Category ID(s) * | Category ID from the Categories tab. Comma-separate to list under several headings. | `ITALLIAN` | `items[].category_ref_ids` |
 | Veg / non-veg * | Dietary mark next to the item. | Veg | `items[].food_type` (`1` veg, `2` non-veg, `3` egg, `5` not applicable) |
 | Aggregator price (Rs) | Price on Swiggy / Zomato when it differs from the base. Blank uses Price. | blank | `items[].external_price` |
@@ -79,43 +79,63 @@ One row is one dish.
 ## Modifiers tab
 
 UrbanPiper has no "variant" or "modifier" entity. It has **option groups**
-(a question) and **options** (the answers). This screen calls them Variants
-and Choices because that is the vocabulary the POS team uses.
+(a question) and **options** (the answers). This screen calls them **Modifier
+groups** and **Variants / modifiers**, matching the POS spec: section 8 calls
+Small / Large a Variant, section 9 calls Cheese / Olives a Modifier inside a
+Modifier Group. UrbanPiper stores both the same way.
 
-A variant carries **no price**. Every choice carries its own extra amount,
-added on top of the item price. A free add-on is a choice priced 0.
+A modifier group carries **no price**. Every variant / modifier carries its own
+extra amount, added on top of the item price. A free add-on is priced 0.
 
-### Variants (the question)
+### Modifier groups (the question)
 
 | Box | What to type | Example | API field |
 |---|---|---|---|
-| Variant ID * | The code choices point at. Each choice's Belongs to variant(s) box must contain exactly this. | `PIZZA-SIZE` | `option_groups[].ref_id` |
-| Variant name * | The question customers see. | `Choose your size` | `option_groups[].title` |
+| Group ID * | The code variants point at. Each variant's Belongs to group(s) box must contain exactly this. | `PIZZA-SIZE` | `option_groups[].ref_id` |
+| Group name * | The question customers see. | `Choose your size` | `option_groups[].title` |
 | Type * | Sets Min and Max for you. See table below. | Variant, pick exactly one | derived |
-| Min choices | Fewest answers a customer must pick. `0` = optional. | `1` | `option_groups[].min_selectable` |
-| Max choices | Most answers a customer may pick. `-1` = no limit. | `1` | `option_groups[].max_selectable` |
+| Min picks | Fewest answers a customer must pick. `0` = optional. | `1` | `option_groups[].min_selectable` |
+| Max picks | Most answers a customer may pick. `-1` = no limit. | `1` | `option_groups[].max_selectable` |
 | Applies to items * | Item ID(s) that ask this question. Comma-separate for several. | `PIZZA-123` | `option_groups[].item_ref_ids` |
+| Display order | Order of questions on the item. Lower first. | `1` | `option_groups[].sort_order` |
+| Active | Untick to hide the whole question without deleting it. | ticked | `option_groups[].active` |
+| Same variant more than once | Lets a customer add the same variant several times, e.g. 2 x extra cheese. | unticked | `option_groups[].multi_options_enabled` |
 
 **Type** is a convenience. UrbanPiper only knows Min and Max.
 
 | Type | Min | Max | Use for |
 |---|---|---|---|
-| Variant, pick exactly one | 1 | 1 | Size, crust, portion |
-| Add-on, pick any, optional | 0 | -1 | Toppings, extras |
-| Pick at least one | 1 | -1 | "Choose at least one sauce" |
+| Pick exactly one (sizes, crusts) | 1 | 1 | Size, crust, portion |
+| Pick any, optional (toppings, extras) | 0 | -1 | Toppings, extras |
+| Pick at least one (sauces) | 1 | -1 | "Choose at least one sauce" |
 | Custom | you set | you set | Anything else, e.g. pick 2 of 5 |
 
-### Choices (the answers)
+### Variants / modifiers (the answers)
 
 | Box | What to type | Example | API field |
 |---|---|---|---|
-| Choice ID * | Any unique code. Nothing else refers to it. | `PIZZA-LARGE` | `options[].ref_id` |
-| Choice name * | The answer customers see. | `Large` | `options[].title` |
+| Variant ID * | Any unique code. Nothing else refers to it. | `PIZZA-LARGE` | `options[].ref_id` |
+| Variant name * | The answer customers see. | `Large` | `options[].title` |
 | Price (Rs, added to item) * | Extra amount on top of the item price. `0` = free. | `150` | `options[].price` |
-| Belongs to variant(s) * | Variant ID(s) this answers. Comma-separate to reuse under several questions. | `PIZZA-SIZE` | `options[].opt_grp_ref_ids` |
+| Belongs to group(s) * | Group ID(s) this answers. Comma-separate to reuse under several questions. | `PIZZA-SIZE` | `options[].opt_grp_ref_ids` |
 | Description | Optional. | blank | `options[].description` |
-| Type (veg / non-veg) | Dietary mark on the choice. | Veg | `options[].food_type` |
-| Available | Untick to hide the choice. | ticked | `options[].available` |
+| Display order | Order within the question. Lower first. | `1` | `options[].sort_order` |
+| Type (veg / non-veg) | Dietary mark on the variant. | Veg | `options[].food_type` |
+| Available | Untick to hide the variant. | ticked | `options[].available` |
+| Recommended | Highlights the variant on the app. | unticked | `options[].recommended` |
+
+### POS spec fields with no UrbanPiper equivalent
+
+From sections 8 and 9 of the requirements document. These stay in the POS and
+appear in the drop report if sent.
+
+| POS field | Why it cannot be sent |
+|---|---|
+| Variant / modifier tax | UrbanPiper taxes attach to items only |
+| MRP on a variant | No MRP field on options |
+| Default variant / default selection | No default flag on options |
+| Variant / modifier timing | Timing exists only at category level |
+| Special price on a variant | One price per option; per-channel price exists on items only |
 
 ### Worked example, end to end
 
@@ -123,20 +143,20 @@ added on top of the item price. A free add-on is a choice priced 0.
 Items tab
   Item ID PIZZA-123, name Onion Pizza, price 340, Category ID(s) ITALLIAN
 
-Modifiers tab, Variants
-  Variant ID PIZZA-SIZE, name "Choose your size",
-  Type "Variant, pick exactly one", Applies to items PIZZA-123
+Modifiers tab, Modifier groups
+  Group ID PIZZA-SIZE, name "Choose your size",
+  Type "Pick exactly one", Applies to items PIZZA-123
 
-Modifiers tab, Choices
-  Choice ID PIZZA-REG,   name Regular, price 0,   Belongs to PIZZA-SIZE
-  Choice ID PIZZA-LARGE, name Large,   price 150, Belongs to PIZZA-SIZE
+Modifiers tab, Variants / modifiers
+  Variant ID PIZZA-REG,   name Regular, price 0,   Belongs to group PIZZA-SIZE
+  Variant ID PIZZA-LARGE, name Large,   price 150, Belongs to group PIZZA-SIZE
 ```
 
 On the app: Onion Pizza under Italian at 340. The customer must pick a size.
 Regular keeps it at 340, Large makes it 490.
 
-To add optional toppings: a second variant `PIZZA-TOPPINGS`, name "Add
-toppings", Type "Add-on, pick any", applies to `PIZZA-123`. Then choices
+To add optional toppings: a second group `PIZZA-TOPPINGS`, name "Add
+toppings", Type "Pick any, optional", applies to `PIZZA-123`. Then modifiers
 `TOP-CHEESE` at 40 and `TOP-OLIVES` at 30, both belonging to `PIZZA-TOPPINGS`.
 
 ---
@@ -175,7 +195,7 @@ Every push is a **full sync**. The editor is the complete snapshot of the
 menu. Anything not listed is deleted from that outlet on UrbanPiper's side.
 
 On an **outlet** push (for example `KN- Group`) this replaces items and
-choices only. Categories, variants, taxes and charges are only replaced on a
+variants only. Categories, modifier groups, taxes and charges are only replaced on a
 **master-level** push (location `-1`).
 
 ---
