@@ -105,12 +105,11 @@ extra amount, added on top of the item price. A free add-on is priced 0.
 
 | Type | Min | Max | Use for |
 |---|---|---|---|
-| Pick exactly one (sizes, crusts) | 1 | 1 | Size, crust, portion |
-| Pick any, optional (toppings, extras) | 0 | -1 | Toppings, extras |
-| Pick at least one (sauces) | 1 | -1 | "Choose at least one sauce" |
-| Custom | you set | you set | Anything else, e.g. pick 2 of 5 |
+| Variant | 1 | 1 | Size, crust, portion. Atlas shows it as "Variant Group". |
+| Modifier / add-on | 0 | -1 | Toppings, extras. Atlas shows it as "Add-On Group". -1 means no limit. |
+| Custom | you set | you set | Depends on the menu, e.g. "pick at least one sauce" is min 1, max -1 |
 
-### Variants / modifiers (the answers)
+### Modifier / variant (the answers)
 
 | Box | What to type | Example | API field |
 |---|---|---|---|
@@ -145,9 +144,9 @@ Items tab
 
 Modifiers tab, Modifier groups
   Group ID PIZZA-SIZE, name "Choose your size",
-  Type "Pick exactly one", Applies to items PIZZA-123
+  Type "Variant", Applies to items PIZZA-123
 
-Modifiers tab, Variants / modifiers
+Modifiers tab, Modifier / variant
   Variant ID PIZZA-REG,   name Regular, price 0,   Belongs to group PIZZA-SIZE
   Variant ID PIZZA-LARGE, name Large,   price 150, Belongs to group PIZZA-SIZE
 ```
@@ -156,7 +155,7 @@ On the app: Onion Pizza under Italian at 340. The customer must pick a size.
 Regular keeps it at 340, Large makes it 490.
 
 To add optional toppings: a second group `PIZZA-TOPPINGS`, name "Add
-toppings", Type "Pick any, optional", applies to `PIZZA-123`. Then modifiers
+toppings", Type "Modifier / add-on", applies to `PIZZA-123`. Then modifiers
 `TOP-CHEESE` at 40 and `TOP-OLIVES` at 30, both belonging to `PIZZA-TOPPINGS`.
 
 ---

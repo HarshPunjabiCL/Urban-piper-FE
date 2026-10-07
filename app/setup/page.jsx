@@ -21,6 +21,7 @@ import {
   clearJobs,
   getSchema,
   listKnownStores,
+  getLastMenu,
   setCategoryTimings
 } from "../../lib/api";
 import { card, primaryBtn, secondaryBtn, inputCls, label } from "../../lib/ui";
@@ -299,8 +300,10 @@ export default function SetupPage() {
                         try {
                           const res = await getLastMenu(s.ref_id);
                           if (res?.data?.catalogue) setMenu(res.data.catalogue);
-                        } catch {
-                          // Not fatal — the outlet still loaded.
+                        } catch (err) {
+                          // The outlet still loaded; say why the menu did not,
+                          // rather than leaving step 2 silently unchanged.
+                          setError(new Error(`Outlet loaded, but its last menu could not be fetched: ${err.message}`));
                         }
                       }}
                       className={

@@ -37,11 +37,13 @@ const ALLERGENS = [
 // The kind of question a variant asks. UrbanPiper has no "type" field — it
 // keeps min/max on the group — so the type is derived from, and writes, those
 // two numbers. Picking one sets min/max; editing min/max by hand shows Custom.
+// UrbanPiper's standard group types, as Atlas labels them. Variant = exactly
+// one pick (min 1, max 1). Add-on = any number including none (min 0, max -1,
+// where -1 means no limit). Anything else is Custom and the menu decides.
 const GROUP_TYPES = [
-  { value: "variant", label: "Pick exactly one (sizes, crusts)", min: 1, max: 1 },
-  { value: "addon", label: "Pick any, optional (toppings, extras)", min: 0, max: -1 },
-  { value: "required_multi", label: "Pick at least one (sauces)", min: 1, max: -1 },
-  { value: "custom", label: "Custom min / max", min: null, max: null }
+  { value: "variant", label: "Variant — min 1, max 1 (pick exactly one)", min: 1, max: 1 },
+  { value: "addon", label: "Modifier / add-on — min 0, max -1 (any number, or none)", min: 0, max: -1 },
+  { value: "custom", label: "Custom — depends on the menu (set min / max yourself)", min: null, max: null }
 ];
 const groupTypeOf = (g) =>
   GROUP_TYPES.find((t) => t.min === Number(g.min_selectable) && t.max === Number(g.max_selectable))?.value ?? "custom";
@@ -421,12 +423,13 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
           <>
             <Guide title="How modifiers work">
               <p>
-                A <strong>modifier group</strong> is a question the customer is asked (&ldquo;Choose
-                your size&rdquo;, &ldquo;Add toppings&rdquo;). It carries no price. A{" "}
-                <strong>variant / modifier</strong> is one answer (&ldquo;Large&rdquo;, &ldquo;Extra
-                cheese&rdquo;) and carries its own price, added to the item price. A size is a
-                variant; a topping is a modifier; UrbanPiper stores both the same way. A free add-on
-                is priced 0.
+                A <strong>modifier group</strong> is a question the customer is asked. UrbanPiper
+                has two standard kinds: a <strong>Variant group</strong> (&ldquo;Choose your
+                size&rdquo;, exactly one pick) and an <strong>Add-on group</strong> (&ldquo;Add
+                toppings&rdquo;, any number or none). The group carries no price. Each{" "}
+                <strong>variant / modifier</strong> inside it is one answer (&ldquo;Large&rdquo;,
+                &ldquo;Extra cheese&rdquo;) with its own price added to the item. A free add-on is
+                priced 0.
               </p>
               <p>Three IDs link everything together:</p>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -440,7 +443,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                   <p>Applies to items <Example>PIZZA-123</Example></p>
                 </div>
                 <div className="rounded-md bg-white p-2 ring-1 ring-slate-200">
-                  <p className="font-semibold text-slate-800">3. Variants / modifiers</p>
+                  <p className="font-semibold text-slate-800">3. Modifier / variant</p>
                   <p><Example>PIZZA-REG</Example> Regular, +0, belongs to <Example>PIZZA-SIZE</Example></p>
                   <p><Example>PIZZA-LARGE</Example> Large, +150, belongs to <Example>PIZZA-SIZE</Example></p>
                 </div>
@@ -485,7 +488,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
                       ))}
                     </select>
                     <span className="mt-0.5 block text-2xs leading-snug text-slate-400">
-                      How many answers the customer may pick. Fills Min / Max for you.
+                      Variant = sizes, crusts (1 pick). Modifier = toppings, extras (any). Fills Min / Max; Custom lets you set them.
                     </span>
                   </label>
                 </div>
@@ -556,7 +559,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
             </AddBtn>
 
             <p className="pt-3 text-2xs font-semibold uppercase tracking-wider text-slate-500">
-              Variants / modifiers — the answers (e.g. Small, Large, Extra cheese), each with its own price
+              Modifier / variant — the answers (e.g. Small, Large, Extra cheese), each with its own price
             </p>
             {list("options").map((o, i) => (
               <Row key={i} onRemove={() => remove("options", i)}>
@@ -644,7 +647,7 @@ export default function MenuBuilder({ value, onChange, platforms = [] }) {
               </Row>
             ))}
             <AddBtn onClick={() => add("options", { ref_id: "", title: "", price: 0, available: true, opt_grp_ref_ids: [] })}>
-              + Add variant / modifier
+              + Add modifier / variant
             </AddBtn>
             <p className="text-2xs text-slate-400">
               Price is set per option, not per group &mdash; UrbanPiper has no group-level

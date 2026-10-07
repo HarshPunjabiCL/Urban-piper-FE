@@ -18,13 +18,33 @@ import JsonViewer from "./JsonViewer";
  */
 const PLATFORM_CHOICES = ["swiggy", "zomato"];
 
+// UrbanPiper's wording for "this outlet is not linked to that channel in
+// Atlas". It is the one error an operator will actually hit here, and the raw
+// text ("not stagged yet or excluded") does not say what to do about it.
+function explain(message) {
+  // The message arrives either as `platform "swiggy"` or JSON-escaped as
+  // `platform \"swiggy\"`, so allow an optional backslash before each quote.
+  const m = /Location not valid for platform \\?"(\w+)\\?"/i.exec(message);
+  if (m) {
+    const channel = m[1][0].toUpperCase() + m[1].slice(1);
+    return (
+      `This outlet is not linked to ${channel} yet, so ${channel} cannot be switched. ` +
+      `Link it in Atlas (Locations, then the outlet, then Platforms, enter the ${channel} store ID), ` +
+      `or untick ${channel} here.`
+    );
+  }
+  return null;
+}
+
 function Result({ state }) {
   if (!state) return null;
   if (state.error) {
+    const friendly = explain(state.error);
     return (
-      <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
-        {state.error}
-      </p>
+      <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+        {friendly && <p className="font-semibold">{friendly}</p>}
+        <p className={friendly ? "mt-1 text-2xs text-rose-600" : ""}>{state.error}</p>
+      </div>
     );
   }
   return (
@@ -73,9 +93,11 @@ export default function AvailabilityPanel({ refId, menu }) {
   const toggleIn = (list, set) => (id) =>
     set(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
-  // UrbanPiper wants ISO-8601 with an offset; the datetime-local input gives
-  // local wall time with no zone, so stamp the browser's offset on.
-  const toIso = (local) => (local ? new Date(local).toISOString() : undefined);
+  // UrbanPiper wants `turn_on_at` as an epoch timestamp in MILLISECONDS
+  // (its own 400 says so: "Use epoch timestamp in milliseconds or null").
+  // datetime-local gives local wall time, and Date() reads it in the
+  // browser's zone, so the number is correct for the operator's clock.
+  const toEpochMs = (local) => (local ? new Date(local).getTime() : undefined);
 
   async function submitStore() {
     setStoreBusy(true);
@@ -85,7 +107,7 @@ export default function AvailabilityPanel({ refId, menu }) {
         locationRefId: refId,
         action: storeAction,
         ...(storePlatforms.length ? { platforms: storePlatforms } : {}),
-        ...(storeAction === "disable" && storeTurnOnAt ? { turnOnAt: toIso(storeTurnOnAt) } : {})
+        ...(storeAction === "disable" && storeTurnOnAt ? { turnOnAt: toEpochMs(storeTurnOnAt) } : {})
       });
       setStoreResult({ data: data?.data ?? data });
     } catch (err) {
@@ -108,7 +130,7 @@ export default function AvailabilityPanel({ refId, menu }) {
         action: itemAction,
         ...(itemIds.length ? { itemRefIds: itemIds } : {}),
         ...(optionIds.length ? { optionRefIds: optionIds } : {}),
-        ...(itemAction === "disable" && itemTurnOnAt ? { turnOnAt: toIso(itemTurnOnAt) } : {})
+        ...(itemAction === "disable" && itemTurnOnAt ? { turnOnAt: toEpochMs(itemTurnOnAt) } : {})
       });
       setItemResult({ data: data?.data ?? data });
     } catch (err) {
@@ -118,7 +140,8 @@ export default function AvailabilityPanel({ refId, menu }) {
     }
   }
 
-  const actionLabel = (a) => (a === "enable" ? "Switch ON" : "Switch OFF");
+  const actionLabel = (a) =>
+    a === "enable" ? "Switch ON" : a === "publish" ? "Publish menu for" : "Switch OFF";
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -138,7 +161,19 @@ export default function AvailabilityPanel({ refId, menu }) {
           <Radio name="store-action" value="enable" current={storeAction} onChange={setStoreAction}>
             Switch ON
           </Radio>
+          <Radio name="store-action" value="publish" current={storeAction} onChange={setStoreAction}>
+            Publish menu to channel(s)
+          </Radio>
         </div>
+        {storeAction === "publish" && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-900">
+            Pushes this outlet&rsquo;s current menu out to the ticked channels. Needed once after
+            the outlet is linked to a channel in Atlas (Locations &rarr; outlet &rarr; Hub, set the
+            channel&rsquo;s external reference ID), and again whenever UrbanPiper reports
+            &ldquo;no published menu for the DSP&rdquo;. The result arrives on the
+            hub_menu_publish webhook.
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <span className={label}>Channels</span>
